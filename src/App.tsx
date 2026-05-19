@@ -286,6 +286,7 @@ const commissionRows = [
 
 function App() {
   const [workspace, setWorkspace] = useState<Workspace>("admin");
+  const [lastPortalWorkspace, setLastPortalWorkspace] = useState<Exclude<Workspace, "storefront">>("admin");
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -294,8 +295,17 @@ function App() {
   const activePage = navItems.some((item) => item.id === page) ? page : navItems[0].id;
 
   function switchWorkspace(next: Workspace) {
+    if (next === "storefront" && workspace !== "storefront") {
+      setLastPortalWorkspace(workspace);
+    }
     setWorkspace(next);
     setPage(navByWorkspace[next][0].id);
+    setSidebarOpen(false);
+  }
+
+  function returnToPortal() {
+    setWorkspace(lastPortalWorkspace);
+    setPage(navByWorkspace[lastPortalWorkspace][0].id);
     setSidebarOpen(false);
   }
 
@@ -322,15 +332,22 @@ function App() {
             onWorkspace={switchWorkspace}
           />
         )}
+        {workspace === "storefront" && (
+          <StorePreviewBar
+            returnWorkspace={lastPortalWorkspace}
+            onReturn={returnToPortal}
+            onWorkspace={switchWorkspace}
+          />
+        )}
         {workspace !== "storefront" && workspace !== "provider" && (
           <ImpersonationBar />
         )}
-        <main className="content">
+        <main className={workspace === "storefront" ? "content storefront-content" : "content"}>
           <PageRenderer
             workspace={workspace}
             page={activePage}
             onCreateOrder={() => setModalOpen(true)}
-            onWorkspace={switchWorkspace}
+            onReturnToPortal={returnToPortal}
           />
         </main>
         {workspace !== "storefront" && (
@@ -350,14 +367,16 @@ function PageRenderer({
   workspace,
   page,
   onCreateOrder,
-  onWorkspace,
+  onReturnToPortal,
 }: {
   workspace: Workspace;
   page: string;
   onCreateOrder: () => void;
-  onWorkspace: (workspace: Workspace) => void;
+  onReturnToPortal: () => void;
 }) {
-  if (workspace === "storefront") return <Storefront onWorkspace={onWorkspace} />;
+  if (workspace === "storefront") {
+    return <Storefront onReturnToPortal={onReturnToPortal} />;
+  }
   if (workspace === "provider" && page === "visit") return <ProviderVisit />;
   if (workspace === "provider") return <ProviderDashboard onCreateOrder={onCreateOrder} />;
   if (page === "orders" || page === "products") return <OrdersProducts onCreateOrder={onCreateOrder} />;
@@ -370,6 +389,42 @@ function PageRenderer({
   if (page === "prospects") return <ProspectsPage />;
   if (page === "audit") return <AuditPage />;
   return <Dashboard workspace={workspace} onCreateOrder={onCreateOrder} />;
+}
+
+function StorePreviewBar({
+  returnWorkspace,
+  onReturn,
+  onWorkspace,
+}: {
+  returnWorkspace: Exclude<Workspace, "storefront">;
+  onReturn: () => void;
+  onWorkspace: (workspace: Workspace) => void;
+}) {
+  const returnLabel = returnWorkspace === "admin"
+    ? "Admin Portal"
+    : returnWorkspace === "rep"
+      ? "Rep Portal"
+      : "Provider Portal";
+
+  return (
+    <header className="store-preview-bar">
+      <div className="preview-context">
+        <Store size={18} />
+        <div>
+          <strong>Storefront Preview</strong>
+          <span>Public rep store is open inside the operating console.</span>
+        </div>
+      </div>
+      <div className="preview-switcher">
+        <button onClick={() => onWorkspace("admin")}>Admin</button>
+        <button onClick={() => onWorkspace("rep")}>Rep</button>
+        <button onClick={() => onWorkspace("provider")}>Provider</button>
+      </div>
+      <button className="primary-button" onClick={onReturn}>
+        <PanelLeftClose size={17} /> Back to {returnLabel}
+      </button>
+    </header>
+  );
 }
 
 function Sidebar({
@@ -894,7 +949,11 @@ function ProviderVisit() {
   );
 }
 
-function Storefront({ onWorkspace }: { onWorkspace: (workspace: Workspace) => void }) {
+function Storefront({
+  onReturnToPortal,
+}: {
+  onReturnToPortal: () => void;
+}) {
   const [cart, setCart] = useState<Product[]>([products[1]]);
   const total = cart.reduce((sum, product) => sum + product.price, 0);
 
@@ -912,7 +971,9 @@ function Storefront({ onWorkspace }: { onWorkspace: (workspace: Workspace) => vo
           <a href="#products">Products</a>
           <a href="#clinic">Clinic QR</a>
           <a href="#apply">Recruit</a>
-          <button className="secondary-button" onClick={() => onWorkspace("admin")}>Portal Demo</button>
+          <button className="secondary-button" onClick={onReturnToPortal}>
+            <PanelLeftClose size={16} /> Back to Portal
+          </button>
         </nav>
       </header>
       <section className="store-hero">
